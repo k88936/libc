@@ -1,7 +1,7 @@
-#include "../include/syscall.h"
+
 #include "../include/stdlib.h"
 typedef long Align;/*for alignment to long boundary*/
-union header { 
+ union header { 
     struct {
         union header *ptr; /*next block if on Mfree list*/
         unsigned size; /*size of this block*/
@@ -12,7 +12,7 @@ typedef union header Header;
 //static char space[200] ;
 static Header base;
 static Header *freep = NULL;
-void free(void *ap)
+extern void free(void *ap)
 {
 
     Header *bp,*p;
@@ -57,7 +57,7 @@ static Header *morecore(unsigned nu)
 
 
 
-void *malloc(unsigned nbytes)
+extern void *malloc(unsigned nbytes)
 {
     Header *p, *prevp;
     unsigned nunits;

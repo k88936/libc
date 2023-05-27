@@ -6,11 +6,16 @@
 // extern int open(const char *name, int flags, int mode);
 extern void *Msbrk (int irc);
 
-extern int ipcl(int id);//interProcessorCall
-
+//interProcessor
+extern int ipSct(int id);
+extern int ipCall(int pos,double arg1);
+extern int ipCall2(int pos,double arg1,double arg2);
+extern double ipRet(int pos);
 
 
 extern void setwrMem (int id);
+
+
 extern void Mwrite( void *ptr ,double value);
 extern double Mread(void *ptr);
 
