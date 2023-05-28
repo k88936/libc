@@ -44,7 +44,7 @@ static Header *morecore(unsigned nu)
    Header *up;
    if(nu < NALLOC)
        nu = NALLOC;
-   cp = (char *)Msbrk(
+   cp = (char *)sys_sbrk(
        nu * sizeof(Header)
        );
    if(cp == (char *)-1)    /* no space at all*/
