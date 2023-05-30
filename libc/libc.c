@@ -1,8 +1,7 @@
 
-#include "../include/string.h"
-
-
-
+#include "sys.h"
+#define NULL 0
+typedef unsigned size_t;
 
 
 void *memchr(const void *s, int c, size_t n)
@@ -220,4 +219,116 @@ char *strtok(char * __restrict s1, const char * __restrict s2)
 {
 	static char *next_start;	/* Initialized to 0 since in bss. */
 	return strtok_r(s1, s2, &next_start);
+}
+
+typedef long Align;/*for alignment to long boundary*/
+ union header { 
+    struct {
+        union header *ptr; /*next block if on Mfree list*/
+        unsigned size; /*size of this block*/
+    } s;
+   Align x;
+};
+typedef union header Header;
+//static char space[200] ;
+static Header base;
+static Header *freep = NULL;
+extern void free(void *ap)
+{
+
+    Header *bp,*p;
+    bp = (Header *)ap -1; /* point to block header */
+    for(p=freep;!(bp>p && bp< p->s.ptr);p=p->s.ptr)
+        if(p>=p->s.ptr && (bp>p || bp<p->s.ptr))
+            break;    /* freed block at start or end of arena*/
+    if (bp+bp->s.size==p->s.ptr) {    /* join to upper nbr */
+        bp->s.size += p->s.ptr->s.size;
+        bp->s.ptr = p->s.ptr->s.ptr;
+    } else
+        bp->s.ptr = p->s.ptr;
+    if (p+p->s.size == bp) {     /* join to lower nbr */
+        p->s.size += bp->s.size;
+        p->s.ptr = bp->s.ptr;
+    } else
+        p->s.ptr = bp;
+    freep = p;
+ }
+
+
+
+#define NALLOC 8 /* minimum #units to request */
+static Header *morecore(unsigned nu)
+{
+
+
+   char *cp;
+   Header *up;
+   if(nu < NALLOC)
+       nu = NALLOC;
+   cp = (char *)sys_sbrk(
+       nu * sizeof(Header)
+       );
+   if(cp == (char *)-1)    /* no space at all*/
+       return NULL;
+    up = (Header *)cp;
+    up->s.size = nu;
+    free((void *)(up+1));
+    return freep;
+}
+
+
+
+extern void *malloc(unsigned nbytes)
+{
+    Header *p, *prevp;
+    unsigned nunits;
+    nunits = (nbytes+sizeof(Header)-1)/sizeof(Header) + 1;
+    if((prevp = freep) == NULL) { /* no Mfree list */
+        base.s.ptr = freep = prevp = &base;
+        base.s.size = 0;
+    }
+    for(p = prevp->s.ptr; ;prevp = p, p= p->s.ptr) {
+        if(p->s.size >= nunits) { /* big enough */
+            if (p->s.size == nunits)  /* exactly */
+                prevp->s.ptr = p->s.ptr;
+            else {
+                p->s.size -= nunits;
+                p += p->s.size;
+                p->s.size = nunits;
+            }
+            freep = prevp;
+      //   cout << p+1 << endl;
+            return (void*)(p+1);
+        }
+        if (p== freep) /* wrapped around Mfree list */
+            if ((p = morecore(nunits)) == NULL)
+                return NULL; /* none left */
+    }
+}
+
+
+void *calloc(size_t nitems, size_t size){
+    unsigned n=size*nitems;
+    void *ptr=malloc(n);
+    memset(ptr,0,n);
+	return ptr;
+}
+void *realloc(void *ptr, size_t size)
+{
+	void *newptr = NULL;
+
+	if (!ptr)
+		return malloc(size);
+	if (!size) {
+		free(ptr);
+		return malloc(0);
+	}
+
+	newptr = malloc(size);
+	if (newptr) {
+		size_t old_size = *((size_t *) (ptr - sizeof(size_t)));
+		memcpy(newptr, ptr, (old_size < size ? old_size : size));
+		free(ptr);
+	}
+	return newptr;
 }
