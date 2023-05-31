@@ -221,11 +221,19 @@ char *strtok(char * __restrict s1, const char * __restrict s2)
 	return strtok_r(s1, s2, &next_start);
 }
 
+
+
+
+
+
+
+
+
 typedef long Align;/*for alignment to long boundary*/
  union header { 
     struct {
         union header *ptr; /*next block if on Mfree list*/
-        unsigned size; /*size of this block*/
+        size_t size; /*size of this block*/
     } s;
    Align x;
 };
@@ -326,9 +334,187 @@ void *realloc(void *ptr, size_t size)
 
 	newptr = malloc(size);
 	if (newptr) {
-		size_t old_size = *((size_t *) (ptr - sizeof(size_t)));
+		size_t old_size = ((Header *) (ptr - 1))->s.size;
 		memcpy(newptr, ptr, (old_size < size ? old_size : size));
 		free(ptr);
 	}
 	return newptr;
+}
+
+
+
+
+
+
+#define TABLE_BASE 0x2e
+#define TABLE_SIZE 0x4d
+
+#define XX ((char)0x40)
+
+
+static const char a64l_table[TABLE_SIZE] =
+{
+  /* 0x2e */                                                           0,  1,
+  /* 0x30 */   2,  3,  4,  5,  6,  7,  8,  9, 10, 11, XX, XX, XX, XX, XX, XX,
+  /* 0x40 */  XX, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26,
+  /* 0x50 */  27, 28, 29, 30, 31, 32, 33, 34, 35, 36, 37, XX, XX, XX, XX, XX,
+  /* 0x60 */  XX, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52,
+  /* 0x70 */  53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63
+};
+
+
+long int a64l (const char *string)
+{
+  const char *ptr = string;
+  unsigned long int result = 0ul;
+  const char *end = ptr + 6;
+  int shift = 0;
+
+  do
+    {
+      unsigned index;
+      unsigned value;
+
+      index = *ptr - TABLE_BASE;
+      if ((unsigned int) index >= TABLE_SIZE)
+	break;
+      value = (int) a64l_table[index];
+      if (value == (int) XX)
+	break;
+      ++ptr;
+      result |= value << shift;
+      shift += 6;
+    }
+  while (ptr != end);
+
+  return (long int) result;
+}
+
+double atof(const char *nptr)
+{
+	return strtod(nptr, (char **) NULL);
+}
+int atoi(const char *nptr)
+{
+	return (int) strtol(nptr, (char **) NULL, 10);
+}
+long atol(const char *nptr)
+{
+	return strtol(nptr, (char **) NULL, 10);
+}
+long long atoll(const char *nptr)
+{
+	return strtoll(nptr, (char **) NULL, 10);
+}
+
+void *bsearch(const void *key, const void *base, size_t /* nmemb */ high,
+			  size_t size, int (*compar)(const void *, const void *))
+{
+	register char *p;
+	size_t low;
+	size_t mid;
+	int r;
+
+	if (size > 0) {				/* TODO: change this to an assert?? */
+		low = 0;
+		while (low < high) {
+			mid = low + ((high - low) >> 1); /* Avoid possible overflow here. */
+			p = ((char *)base) + mid * size; /* Could overflow here... */
+			r = (*compar)(key, p); /* but that's an application problem! */
+			if (r > 0) {
+				low = mid + 1;
+			} else if (r < 0) {
+				high = mid;
+			} else {
+				return p;
+			}
+		}
+	}
+	return NULL;
+}
+
+void ssort(void  *base,
+           size_t nel,
+           size_t width,
+           int (*comp)(const void *, const void *))
+{
+	size_t wnel, gap, wgap, i, j, k;
+	char *a, *b, tmp;
+
+	wnel = width * nel;
+	for (gap = 0; ++gap < nel;)
+		gap *= 3;
+	while ((gap /= 3) != 0) {
+		wgap = width * gap;
+		for (i = wgap; i < wnel; i += width) {
+			for (j = i - wgap; ;j -= wgap) {
+				a = j + (char *)base;
+				b = a + wgap;
+				if ((*comp)(a, b) <= 0)
+					break;
+				k = width;
+				do {
+					tmp = *a;
+					*a++ = *b;
+					*b++ = tmp;
+				} while (--k);
+				if (j < wgap)
+					break;
+			}
+		}
+	}
+}
+void qsort(void  *base,
+           size_t nel,
+           size_t width,
+           __compar_fn_t comp)
+{
+	return qsort_r (base, nel, width, (__compar_d_fn_t) comp, NULL);
+}
+
+void qsort_r(void  *base,
+           size_t nel,
+           size_t width,
+           __compar_d_fn_t comp,
+		   void *arg)
+{
+	size_t wgap, i, j, k;
+	char tmp;
+
+	if ((nel > 1) && (width > 0)) {
+		assert(nel <= ((size_t)(-1)) / width); /* check for overflow */
+		wgap = 0;
+		do {
+			wgap = 3 * wgap + 1;
+		} while (wgap < (nel-1)/3);
+		/* From the above, we know that either wgap == 1 < nel or */
+		/* ((wgap-1)/3 < (int) ((nel-1)/3) <= (nel-1)/3 ==> wgap <  nel. */
+		wgap *= width;			/* So this can not overflow if wnel doesn't. */
+		nel *= width;			/* Convert nel to 'wnel' */
+		do {
+			i = wgap;
+			do {
+				j = i;
+				do {
+					register char *a;
+					register char *b;
+
+					j -= wgap;
+					a = j + ((char *)base);
+					b = a + wgap;
+					if ((*comp)(a, b, arg) <= 0) {
+						break;
+					}
+					k = width;
+					do {
+						tmp = *a;
+						*a++ = *b;
+						*b++ = tmp;
+					} while (--k);
+				} while (j >= wgap);
+				i += width;
+			} while (i < nel);
+			wgap = (wgap - width)/3;
+		} while (wgap);
+	}
 }

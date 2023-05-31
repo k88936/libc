@@ -5,10 +5,10 @@
 // extern int open(const char *name, int flags, int mode);
 extern void *sys_sbrk(int irc);
 // interProcessor
-extern int sys_itpSct(int id);
-extern void sys_itpCall(int pos, double arg1);
-extern void sys_itpCall2(int pos, double arg1, double arg2);
-extern double sys_itpRet(int pos);
+extern int sys_ipcSct(int id);
+extern void sys_ipcCall(int pos, double arg1);
+extern void sys_ipcCall2(int pos, double arg1, double arg2);
+extern double sys_ipcRet(int pos);
 extern void sys_wrbank1(int id);
 extern void sys_wrbank2(int id);
 extern void sys_write(void *ptr, double value);
